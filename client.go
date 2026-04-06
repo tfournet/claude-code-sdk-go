@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"time"
 )
 
 const (
@@ -45,11 +47,12 @@ func WithHTTPClient(hc *http.Client) Option {
 
 // NewClient creates a Client with the given OAuth token and organization UUID.
 func NewClient(token, orgUUID string, opts ...Option) *Client {
+	jar, _ := cookiejar.New(nil)
 	c := &Client{
 		baseURL: defaultBaseURL,
 		token:   token,
 		orgUUID: orgUUID,
-		http:    http.DefaultClient,
+		http:    &http.Client{Jar: jar, Timeout: 30 * time.Second},
 	}
 	for _, o := range opts {
 		o(c)
@@ -94,6 +97,10 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (*http.R
 	req.Header.Set(headerClientVersion, "1.0.0")
 	req.Header.Set(headerOrgUUID, c.orgUUID)
 	req.Header.Set(headerContentType, "application/json")
+	req.Header.Set("User-Agent", "claude-code-sdk-go/1.0.0")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	return c.http.Do(req)
 }

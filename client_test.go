@@ -69,6 +69,10 @@ func TestAuthHeaders(t *testing.T) {
 		headerClientVersion:    "1.0.0",
 		headerOrgUUID:          "my-org",
 		headerContentType:      "application/json",
+		"User-Agent":           "claude-code-sdk-go/1.0.0",
+		"Accept":               "application/json",
+		"Accept-Encoding":      "gzip, deflate, br",
+		"Accept-Language":      "en-US,en;q=0.9",
 	}
 	for header, want := range checks {
 		got := gotHeaders.Get(header)
@@ -98,5 +102,21 @@ func TestDoJSON_APIError(t *testing.T) {
 	}
 	if apiErr.StatusCode != 403 {
 		t.Errorf("StatusCode = %d, want 403", apiErr.StatusCode)
+	}
+}
+
+func TestNewClient_DefaultHasCookieJar(t *testing.T) {
+	c := NewClient("tok", "org")
+
+	if c.http.Jar == nil {
+		t.Error("default HTTP client has no cookie jar")
+	}
+}
+
+func TestNewClient_DefaultHasTimeout(t *testing.T) {
+	c := NewClient("tok", "org")
+
+	if c.http.Timeout == 0 {
+		t.Error("default HTTP client has no timeout")
 	}
 }
