@@ -10,27 +10,30 @@ import (
 
 func TestListEnvironments(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wantPath := "/v1/environment_providers/private/organizations/org-abc/environments"
+		wantPath := "/v1/environment_providers"
 		if r.URL.Path != wantPath {
 			t.Errorf("path = %s, want %s", r.URL.Path, wantPath)
 		}
-		json.NewEncoder(w).Encode([]map[string]any{
-			{
-				"environment_id": "env-1",
-				"name":           "My Bridge",
-				"kind":           "bridge",
-				"state":          "active",
-				"bridge_info": map[string]any{
-					"online":       true,
-					"machine_name": "devbox",
-					"directory":    "/home/user/project",
+		// The API returns an object with an "environments" field, not a bare array.
+		json.NewEncoder(w).Encode(map[string]any{
+			"environments": []map[string]any{
+				{
+					"environment_id": "env-1",
+					"name":           "My Bridge",
+					"kind":           "bridge",
+					"state":          "active",
+					"bridge_info": map[string]any{
+						"online":       true,
+						"machine_name": "devbox",
+						"directory":    "/home/user/project",
+					},
 				},
-			},
-			{
-				"environment_id": "env-2",
-				"name":           "Cloud",
-				"kind":           "anthropic_cloud",
-				"state":          "active",
+				{
+					"environment_id": "env-2",
+					"name":           "Cloud",
+					"kind":           "anthropic_cloud",
+					"state":          "active",
+				},
 			},
 		})
 	}))

@@ -32,17 +32,26 @@ type bridgeInfo struct {
 	Directory   string `json:"directory"`
 }
 
+// environmentsResponse wraps the JSON returned by the environments endpoint.
+// The API returns {"environments": [...]}, not a bare array.
+type environmentsResponse struct {
+	Environments []rawEnvironment `json:"environments"`
+}
+
 // ListEnvironments returns all environments for the organization.
 func (c *Client) ListEnvironments(ctx context.Context) ([]Environment, error) {
-	path := fmt.Sprintf("/v1/environment_providers/private/organizations/%s/environments", c.orgUUID)
+	// The CLI uses GET /v1/environment_providers with x-organization-uuid header
+	// (set by the do method). The old path (/v1/environment_providers/private/
+	// organizations/{orgId}/environments) returns 403 "Invalid authorization".
+	const path = "/v1/environment_providers"
 
-	var raw []rawEnvironment
-	if err := c.doJSON(ctx, "GET", path, nil, &raw); err != nil {
+	var resp environmentsResponse
+	if err := c.doJSON(ctx, "GET", path, nil, &resp); err != nil {
 		return nil, fmt.Errorf("list environments: %w", err)
 	}
 
-	envs := make([]Environment, len(raw))
-	for i, r := range raw {
+	envs := make([]Environment, len(resp.Environments))
+	for i, r := range resp.Environments {
 		envs[i] = Environment{
 			ID:    r.EnvironmentID,
 			Name:  r.Name,
