@@ -94,6 +94,9 @@ func (conn *Conn) dial(ctx context.Context) error {
 
 	ws, _, err := websocket.Dial(ctx, endpoint, &websocket.DialOptions{
 		HTTPHeader: headers,
+		HTTPClient: &http.Client{
+			Transport: newChromeTransport(),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("websocket dial: %w", err)

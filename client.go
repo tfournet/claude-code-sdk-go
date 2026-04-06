@@ -52,7 +52,11 @@ func NewClient(token, orgUUID string, opts ...Option) *Client {
 		baseURL: defaultBaseURL,
 		token:   token,
 		orgUUID: orgUUID,
-		http:    &http.Client{Jar: jar, Timeout: 30 * time.Second},
+		http: &http.Client{
+			Jar:       jar,
+			Timeout:   30 * time.Second,
+			Transport: newChromeTransport(),
+		},
 	}
 	for _, o := range opts {
 		o(c)
@@ -99,7 +103,6 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (*http.R
 	req.Header.Set(headerContentType, "application/json")
 	req.Header.Set("User-Agent", "claude-code-sdk-go/1.0.0")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	return c.http.Do(req)

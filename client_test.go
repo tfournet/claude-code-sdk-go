@@ -71,7 +71,6 @@ func TestAuthHeaders(t *testing.T) {
 		headerContentType:      "application/json",
 		"User-Agent":           "claude-code-sdk-go/1.0.0",
 		"Accept":               "application/json",
-		"Accept-Encoding":      "gzip, deflate, br",
 		"Accept-Language":      "en-US,en;q=0.9",
 	}
 	for header, want := range checks {
@@ -79,6 +78,11 @@ func TestAuthHeaders(t *testing.T) {
 		if got != want {
 			t.Errorf("header %s = %q, want %q", header, got, want)
 		}
+	}
+
+	// Accept-Encoding is set by the transport, not by us. Just verify it's present.
+	if gotHeaders.Get("Accept-Encoding") == "" {
+		t.Error("Accept-Encoding header is missing")
 	}
 }
 
