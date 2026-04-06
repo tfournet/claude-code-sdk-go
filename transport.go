@@ -90,3 +90,76 @@ func roundTripH2(req *http.Request, conn net.Conn) (*http.Response, error) {
 
 	return h2conn.RoundTrip(req)
 }
+
+// newChromeH1Transport returns an http.Transport that uses utls Chrome
+// fingerprinting but forces HTTP/1.1 (no h2 ALPN). Required for WebSocket
+// connections which don't work over HTTP/2.
+func newChromeH1Transport() *http.Transport {
+	return &http.Transport{
+		DialTLS: func(network, addr string) (net.Conn, error) {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				host = addr
+			}
+			conn, err := net.DialTimeout(network, addr, 10*time.Second)
+			if err != nil {
+				return nil, err
+			}
+			// Use Chrome fingerprint but override NextProtos to exclude h2.
+			// This makes the server negotiate HTTP/1.1 for WebSocket upgrades.
+			tlsConn := utls.UClient(conn, &utls.Config{
+				ServerName: host,
+				NextProtos: []string{"http/1.1"},
+			}, utls.HelloCustom)
+			// Apply Chrome-like spec manually with http/1.1 only ALPN.
+			spec := &utls.ClientHelloSpec{
+				TLSVersMax: utls.VersionTLS13,
+				TLSVersMin: utls.VersionTLS12,
+				CipherSuites: []uint16{
+					utls.GREASE_PLACEHOLDER,
+					utls.TLS_AES_128_GCM_SHA256,
+					utls.TLS_AES_256_GCM_SHA384,
+					utls.TLS_CHACHA20_POLY1305_SHA256,
+					utls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					utls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+					utls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+					utls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+					utls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+					utls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+					utls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+					utls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+					utls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+					utls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+					utls.TLS_RSA_WITH_AES_128_CBC_SHA,
+					utls.TLS_RSA_WITH_AES_256_CBC_SHA,
+				},
+				Extensions: []utls.TLSExtension{
+					&utls.SNIExtension{},
+					&utls.SupportedCurvesExtension{Curves: []utls.CurveID{utls.X25519, utls.CurveP256, utls.CurveP384}},
+					&utls.SupportedPointsExtension{SupportedPoints: []byte{0}},
+					&utls.SessionTicketExtension{},
+					&utls.ALPNExtension{AlpnProtocols: []string{"http/1.1"}},
+					&utls.SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []utls.SignatureScheme{
+						utls.ECDSAWithP256AndSHA256, utls.PSSWithSHA256,
+						utls.PKCS1WithSHA256, utls.ECDSAWithP384AndSHA384,
+						utls.PSSWithSHA384, utls.PKCS1WithSHA384,
+						utls.PSSWithSHA512, utls.PKCS1WithSHA512,
+					}},
+					&utls.SupportedVersionsExtension{Versions: []uint16{utls.VersionTLS13, utls.VersionTLS12}},
+					&utls.KeyShareExtension{KeyShares: []utls.KeyShare{{Group: utls.X25519}}},
+				},
+			}
+			if err := tlsConn.ApplyPreset(spec); err != nil {
+				conn.Close()
+				return nil, fmt.Errorf("apply h1 spec: %w", err)
+			}
+			if err := tlsConn.Handshake(); err != nil {
+				conn.Close()
+				return nil, err
+			}
+			return tlsConn, nil
+		},
+		MaxIdleConns:    100,
+		IdleConnTimeout: 90 * time.Second,
+	}
+}
